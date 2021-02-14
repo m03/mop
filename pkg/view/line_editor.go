@@ -2,13 +2,16 @@
 // Use of this source code is governed by a MIT-style license that can
 // be found in the LICENSE file.
 
-package mop
+package view
 
 import (
-	`regexp`
-	`strings`
+	"fmt"
+	"regexp"
+	"strings"
 
-	`github.com/nsf/termbox-go`
+	"github.com/nsf/termbox-go"
+
+	"github.com/mop-tracker/mop/pkg/model"
 )
 
 // LineEditor kicks in when user presses '+' or '-' to add or delete stock
@@ -21,12 +24,12 @@ type LineEditor struct {
 	prompt  string         // Prompt string for the command.
 	input   string         // User typed input string.
 	screen  *Screen        // Pointer to Screen.
-	quotes  *Quotes        // Pointer to Quotes.
+	quotes  *model.Quotes        // Pointer to Quotes.
 	regex   *regexp.Regexp // Regex to split comma-delimited input string.
 }
 
-// Returns new initialized LineEditor struct.
-func NewLineEditor(screen *Screen, quotes *Quotes) *LineEditor {
+// NewLineEditor returns new initialized LineEditor struct
+func NewLineEditor(screen *Screen, quotes *model.Quotes) *LineEditor {
 	return &LineEditor{
 		screen: screen,
 		quotes: quotes,
@@ -40,19 +43,21 @@ func NewLineEditor(screen *Screen, quotes *Quotes) *LineEditor {
 func (editor *LineEditor) Prompt(command rune) *LineEditor {
 	filterPrompt := `Set filter: `
 
-	if filter := editor.quotes.profile.Filter; len(filter) > 0 {
+	if filter := editor.quotes.Profile.Filter; len(filter) > 0 {
 		filterPrompt = `Set filter (` + filter + `): `
 	}
 
 	prompts := map[rune]string{
-		'+': `Add tickers: `, '-': `Remove tickers: `,
+		'+': `Add tickers: `,
+		'-': `Remove tickers: `,
 		'f': filterPrompt,
 	}
 	if prompt, ok := prompts[command]; ok {
 		editor.prompt = prompt
 		editor.command = command
 
-		editor.screen.DrawLine(0, 3, `<white>`+editor.prompt+`</>`)
+		line := fmt.Sprintf("<base>%s</>", editor.prompt)
+		editor.screen.DrawLine(0, 3, line)
 		termbox.SetCursor(len(editor.prompt), 3)
 		termbox.Flush()
 	}
@@ -102,7 +107,7 @@ func (editor *LineEditor) Handle(ev termbox.Event) bool {
 	return false
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (editor *LineEditor) deletePreviousCharacter() *LineEditor {
 	if editor.cursor > 0 {
 		if editor.cursor < len(editor.input) {
@@ -119,7 +124,7 @@ func (editor *LineEditor) deletePreviousCharacter() *LineEditor {
 	return editor
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (editor *LineEditor) insertCharacter(ch rune) *LineEditor {
 	if editor.cursor < len(editor.input) {
 		// Insert the character in the middle of the input string.
@@ -134,7 +139,7 @@ func (editor *LineEditor) insertCharacter(ch rune) *LineEditor {
 	return editor
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (editor *LineEditor) moveLeft() *LineEditor {
 	if editor.cursor > 0 {
 		editor.cursor--
@@ -144,7 +149,7 @@ func (editor *LineEditor) moveLeft() *LineEditor {
 	return editor
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (editor *LineEditor) moveRight() *LineEditor {
 	if editor.cursor < len(editor.input) {
 		editor.cursor++
@@ -154,7 +159,7 @@ func (editor *LineEditor) moveRight() *LineEditor {
 	return editor
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (editor *LineEditor) jumpToBeginning() *LineEditor {
 	editor.cursor = 0
 	termbox.SetCursor(len(editor.prompt)+editor.cursor, 3)
@@ -162,7 +167,7 @@ func (editor *LineEditor) jumpToBeginning() *LineEditor {
 	return editor
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (editor *LineEditor) jumpToEnd() *LineEditor {
 	editor.cursor = len(editor.input)
 	termbox.SetCursor(len(editor.prompt)+editor.cursor, 3)
@@ -170,7 +175,7 @@ func (editor *LineEditor) jumpToEnd() *LineEditor {
 	return editor
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (editor *LineEditor) execute() *LineEditor {
 	switch editor.command {
 	case '+':
@@ -183,7 +188,7 @@ func (editor *LineEditor) execute() *LineEditor {
 	case '-':
 		tickers := editor.tokenize()
 		if len(tickers) > 0 {
-			before := len(editor.quotes.profile.Tickers)
+			before := len(editor.quotes.Profile.Tickers)
 			if removed, _ := editor.quotes.RemoveTickers(tickers); removed > 0 {
 				editor.screen.Draw(editor.quotes)
 
@@ -196,18 +201,18 @@ func (editor *LineEditor) execute() *LineEditor {
 		}
 	case 'f':
 		if len(editor.input) == 0 {
-			editor.input = editor.quotes.profile.Filter
+			editor.input = editor.quotes.Profile.Filter
 		}
 
-		editor.quotes.profile.SetFilter(editor.input)
+		editor.quotes.Profile.SetFilter(editor.input)
 	case 'F':
-		editor.quotes.profile.SetFilter("")
+		editor.quotes.Profile.SetFilter("")
 	}
 
 	return editor
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (editor *LineEditor) done() bool {
 	editor.screen.ClearLine(0, 3)
 	termbox.HideCursor()
@@ -215,7 +220,7 @@ func (editor *LineEditor) done() bool {
 	return true
 }
 
-// Split by whitespace/comma to convert a string to array of tickers. Make sure
+// tokenize splits by whitespace/comma to convert a string to array of tickers. Make sure
 // the string is trimmed to avoid empty tickers in the array.
 func (editor *LineEditor) tokenize() []string {
 	input := strings.ToUpper(strings.Trim(editor.input, `, `))

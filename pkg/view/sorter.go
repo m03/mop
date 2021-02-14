@@ -2,22 +2,25 @@
 // Use of this source code is governed by a MIT-style license that can
 // be found in the LICENSE file.
 
-package mop
+package view
 
 import (
-	`sort`
-	`strconv`
-	`strings`
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/mop-tracker/mop/internal/config"
+	"github.com/mop-tracker/mop/pkg/model"
 )
 
 // Sorter gets called to sort stock quotes by one of the columns. The
 // setup is rather lengthy; there should probably be more concise way
 // that uses reflection and avoids hardcoding the column names.
 type Sorter struct {
-	profile *Profile // Pointer to where we store sort column and order.
+	profile *config.Profile // Pointer to where we store sort column and order.
 }
 
-type sortable []Stock
+type sortable []model.Stock
 
 func (list sortable) Len() int      { return len(list) }
 func (list sortable) Swap(i, j int) { list[i], list[j] = list[j], list[i] }
@@ -143,7 +146,7 @@ func (list byMarketCapDesc) Less(i, j int) bool {
 }
 
 // Returns new Sorter struct.
-func NewSorter(profile *Profile) *Sorter {
+func NewSorter(profile *config.Profile) *Sorter {
 	return &Sorter{
 		profile: profile,
 	}
@@ -151,7 +154,7 @@ func NewSorter(profile *Profile) *Sorter {
 
 // SortByCurrentColumn builds a list of sort interface based on current sort
 // order, then calls sort.Sort to do the actual job.
-func (sorter *Sorter) SortByCurrentColumn(stocks []Stock) *Sorter {
+func (sorter *Sorter) SortByCurrentColumn(stocks []model.Stock) *Sorter {
 	var interfaces []sort.Interface
 
 	if sorter.profile.Ascending {
@@ -202,7 +205,7 @@ func (sorter *Sorter) SortByCurrentColumn(stocks []Stock) *Sorter {
 func c(str string) float32 {
 	c := "$"
 	for _, v := range currencies {
-		if strings.Contains(str,v) {
+		if strings.Contains(str, v) {
 			c = v
 		}
 	}

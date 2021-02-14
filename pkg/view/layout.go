@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style license that can
 // be found in the LICENSE file.
 
-package mop
+package view
 
 import (
 	"bytes"
@@ -12,6 +12,9 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/mop-tracker/mop/internal/config"
+	"github.com/mop-tracker/mop/pkg/model"
 )
 
 var currencies = map[string]string{
@@ -72,7 +75,7 @@ func NewLayout() *Layout {
 
 // Market merges given market data structure with the market template and
 // returns formatted string that includes highlighting markup.
-func (layout *Layout) Market(market *Market) string {
+func (layout *Layout) Market(market *model.Market) string {
 	if ok, err := market.Ok(); !ok { // If there was an error fetching market data...
 		return err // then simply return the error string.
 	}
@@ -89,7 +92,7 @@ func (layout *Layout) Market(market *Market) string {
 // Quotes uses quotes template to format timestamp, stock quotes header,
 // and the list of given stock quotes. It returns formatted string with
 // all the necessary markup.
-func (layout *Layout) Quotes(quotes *Quotes) string {
+func (layout *Layout) Quotes(quotes *model.Quotes) string {
 	zonename, _ := time.Now().In(time.Local).Zone()
 	if ok, err := quotes.Ok(); !ok { // If there was an error fetching stock quotes...
 		return err // then simply return the error string.
@@ -98,10 +101,10 @@ func (layout *Layout) Quotes(quotes *Quotes) string {
 	vars := struct {
 		Now    string  // Current timestamp.
 		Header string  // Formatted header line.
-		Stocks []Stock // List of formatted stock quotes.
+		Stocks []model.Stock // List of formatted stock quotes.
 	}{
 		time.Now().Format(`3:04:05pm ` + zonename),
-		layout.Header(quotes.profile),
+		layout.Header(quotes.Profile),
 		layout.prettify(quotes),
 	}
 
@@ -115,8 +118,8 @@ func (layout *Layout) Quotes(quotes *Quotes) string {
 // formatting includes placing an arrow next to the sorted column title.
 // When the column editor is active it knows how to highlight currently
 // selected column title.
-func (layout *Layout) Header(profile *Profile) string {
-	str, selectedColumn := ``, profile.selectedColumn
+func (layout *Layout) Header(profile *config.Profile) string {
+	str, selectedColumn := ``, profile.SelectedColumn
 
 	for i, col := range layout.columns {
 		arrow := arrowFor(i, profile)
@@ -127,7 +130,7 @@ func (layout *Layout) Header(profile *Profile) string {
 		}
 	}
 
-	return `<u>` + str + `</u>`
+	return fmt.Sprintf("<u>%s</u>", str)
 }
 
 // TotalColumns is the utility method for the column editor that returns
@@ -136,13 +139,13 @@ func (layout *Layout) TotalColumns() int {
 	return len(layout.columns)
 }
 
-//-----------------------------------------------------------------------------
-func (layout *Layout) prettify(quotes *Quotes) []Stock {
-	pretty := make([]Stock, len(quotes.stocks))
+// -----------------------------------------------------------------------------
+func (layout *Layout) prettify(quotes *model.Quotes) []model.Stock {
+	pretty := make([]model.Stock, len(quotes.Stocks))
 	//
 	// Iterate over the list of stocks and properly format all its columns.
 	//
-	for i, stock := range quotes.stocks {
+	for i, stock := range quotes.Stocks {
 		pretty[i].Advancing = stock.Advancing
 		//
 		// Iterate over the list of stock columns. For each column name:
@@ -162,9 +165,9 @@ func (layout *Layout) prettify(quotes *Quotes) []Stock {
 		}
 	}
 
-	profile := quotes.profile
+	profile := quotes.Profile
 
-	if profile.filterExpression != nil {
+	if profile.FilterExpression != nil {
 		if layout.filter == nil { // Initialize filter on first invocation.
 			layout.filter = NewFilter(profile)
 		}
@@ -186,7 +189,7 @@ func (layout *Layout) prettify(quotes *Quotes) []Stock {
 	return pretty
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (layout *Layout) pad(str string, width int) string {
 	match := layout.regex.FindStringSubmatch(str)
 	if len(match) > 0 {
@@ -201,40 +204,77 @@ func (layout *Layout) pad(str string, width int) string {
 	return fmt.Sprintf(`%*s`, width, str)
 }
 
-//-----------------------------------------------------------------------------
+// buildMarketTemplate builds the template for the market data section
 func buildMarketTemplate() *template.Template {
-	markup := `<yellow>Dow</> {{.Dow.change}} ({{.Dow.percent}}) at {{.Dow.latest}} <yellow>S&P 500</> {{.Sp500.change}} ({{.Sp500.percent}}) at {{.Sp500.latest}} <yellow>NASDAQ</> {{.Nasdaq.change}} ({{.Nasdaq.percent}}) at {{.Nasdaq.latest}}
-<yellow>Tokyo</> {{.Tokyo.change}} ({{.Tokyo.percent}}) at {{.Tokyo.latest}} <yellow>HK</> {{.HongKong.change}} ({{.HongKong.percent}}) at {{.HongKong.latest}} <yellow>London</> {{.London.change}} ({{.London.percent}}) at {{.London.latest}} <yellow>Frankfurt</> {{.Frankfurt.change}} ({{.Frankfurt.percent}}) at {{.Frankfurt.latest}} {{if .IsClosed}}<right>U.S. markets closed</right>{{end}}
-<yellow>10-Year Yield</> {{.Yield.latest}}% ({{.Yield.change}}) <yellow>Euro</> ${{.Euro.latest}} ({{.Euro.change}}%) <yellow>Yen</> ¥{{.Yen.latest}} ({{.Yen.change}}%) <yellow>Oil</> ${{.Oil.latest}} ({{.Oil.change}}%) <yellow>Gold</> ${{.Gold.latest}} ({{.Gold.change}}%)`
+	var markup string
+
+	markets := map[string]map[string]string{
+		"Indices": {
+			"Dow":     "Dow",
+			"S&P 500": "Sp500",
+			"NASDAQ":  "Nasdaq",
+		},
+		"Exchanges": {
+			"Tokyo":     "Tokyo",
+			"HK":        "HongKong",
+			"London":    "London",
+			"Frankfurt": "Frankfurt",
+		},
+	}
+	reserves := map[string]string{
+		"Euro": "$",
+		"Yen": "¥",
+		"Oil": "$",
+		"Gold": "$",
+	}
+
+	count := 1
+	for _, names := range markets {
+		for name, value := range names {
+			markup += fmt.Sprintf("<market>%s</> {{.%s.change}} ({{.%s.percent}}) at {{.%s.latest}} ",
+				name, value, value, value)
+		}
+		if count < 2 {
+			markup += "\n"
+		}
+		count++
+	}
+
+	markup += "{{if .IsClosed}}<right>U.S. markets closed</right>{{end}}\n"
+	markup += "<market>10-Year Yield</> {{.Yield.latest}}% ({{.Yield.change}}) "
+	for reserve, symbol := range reserves {
+		markup += fmt.Sprintf("<market>%s</> %s{{.%s.latest}} ({{.%s.change}}%%) ",
+			reserve, symbol, reserve, reserve)
+	}
 
 	return template.Must(template.New(`market`).Parse(markup))
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func buildQuotesTemplate() *template.Template {
-	markup := `<right><white>{{.Now}}</></right>
+	markup := `<right><base>{{.Now}}</></right>
 
 
 
 {{.Header}}
-{{range.Stocks}}{{if .Advancing}}<green>{{end}}{{.Ticker}}{{.LastTrade}}{{.Change}}{{.ChangePct}}{{.Open}}{{.Low}}{{.High}}{{.Low52}}{{.High52}}{{.Volume}}{{.AvgVolume}}{{.PeRatio}}{{.Dividend}}{{.Yield}}{{.MarketCap}}{{.PreOpen}}{{.AfterHours}}</>
+{{range.Stocks}}{{if .Advancing}}<highlight>{{end}}{{.Ticker}}{{.LastTrade}}{{.Change}}{{.ChangePct}}{{.Open}}{{.Low}}{{.High}}{{.Low52}}{{.High52}}{{.Volume}}{{.AvgVolume}}{{.PeRatio}}{{.Dividend}}{{.Yield}}{{.MarketCap}}{{.PreOpen}}{{.AfterHours}}</>
 {{end}}`
 
 	return template.Must(template.New(`quotes`).Parse(markup))
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func highlight(collections ...map[string]string) {
 	for _, collection := range collections {
 		if collection[`change`][0:1] != `-` {
-			collection[`change`] = `<green>` + collection[`change`] + `</>`
+			collection[`change`] = `<highlight>` + collection[`change`] + `</>`
 		}
 	}
 }
 
-//-----------------------------------------------------------------------------
-func group(stocks []Stock) []Stock {
-	grouped := make([]Stock, len(stocks))
+// -----------------------------------------------------------------------------
+func group(stocks []model.Stock) []model.Stock {
+	grouped := make([]model.Stock, len(stocks))
 	current := 0
 
 	for _, stock := range stocks {
@@ -253,8 +293,8 @@ func group(stocks []Stock) []Stock {
 	return grouped
 }
 
-//-----------------------------------------------------------------------------
-func arrowFor(column int, profile *Profile) string {
+// -----------------------------------------------------------------------------
+func arrowFor(column int, profile *config.Profile) string {
 	if column == profile.SortColumn {
 		if profile.Ascending {
 			return string('\U00002191')
@@ -264,7 +304,7 @@ func arrowFor(column int, profile *Profile) string {
 	return ``
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func blank(str ...string) string {
 	if len(str) < 1 {
 		return "ERR"
@@ -276,7 +316,7 @@ func blank(str ...string) string {
 	return str[0]
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func zero(str ...string) string {
 	if len(str) < 2 {
 		return "ERR"
@@ -288,7 +328,7 @@ func zero(str ...string) string {
 	return currency(str[0], str[1])
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func last(str ...string) string {
 	if len(str) < 1 {
 		return "ERR"
@@ -300,7 +340,7 @@ func last(str ...string) string {
 	return percent(str[0])
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func currency(str ...string) string {
 	if len(str) < 2 {
 		return "ERR"
@@ -321,8 +361,7 @@ func currency(str ...string) string {
 	return symbol + str[0]
 }
 
-// Returns percent value truncated at 2 decimal points.
-//-----------------------------------------------------------------------------
+// percent returns the percent value truncated at 2 decimal points
 func percent(str ...string) string {
 	if len(str) < 1 {
 		return "ERR"

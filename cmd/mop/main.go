@@ -5,17 +5,17 @@
 package main
 
 import (
-	"flag"
-	"os/user"
-	"path"
+	"fmt"
+	"os"
 	"time"
 
-	"github.com/mop-tracker/mop"
+	"github.com/mop-tracker/mop/internal"
+	"github.com/mop-tracker/mop/internal/config"
+	"github.com/mop-tracker/mop/pkg/model"
+	"github.com/mop-tracker/mop/pkg/view"
+
 	"github.com/nsf/termbox-go"
 )
-
-// File name in user's home directory where we store the settings.
-const defaultProfile = `.moprc`
 
 const help = `Mop v0.2.0 -- Copyright (c) 2013-2016 by Michael Dvorkin. All Rights Reserved.
 NO WARRANTIES OF ANY KIND WHATSOEVER. SEE THE LICENSE FILE FOR DETAILS.
@@ -37,10 +37,10 @@ Enter comma-delimited list of stock tickers when prompted.
 <r> Press any key to continue </r>
 `
 
-//-----------------------------------------------------------------------------
-func mainLoop(screen *mop.Screen, profile *mop.Profile) {
-	var lineEditor *mop.LineEditor
-	var columnEditor *mop.ColumnEditor
+// -----------------------------------------------------------------------------
+func mainLoop(screen *view.Screen, profile *config.Profile) {
+	var lineEditor *view.LineEditor
+	var columnEditor *view.ColumnEditor
 
 	keyboardQueue := make(chan termbox.Event)
 	timestampQueue := time.NewTicker(1 * time.Second)
@@ -55,8 +55,8 @@ func mainLoop(screen *mop.Screen, profile *mop.Profile) {
 		}
 	}()
 
-	market := mop.NewMarket()
-	quotes := mop.NewQuotes(market, profile)
+	market := model.NewMarket()
+	quotes := model.NewQuotes(market, profile)
 	screen.Draw(market, quotes)
 
 loop:
@@ -69,15 +69,15 @@ loop:
 					if event.Key == termbox.KeyEsc || event.Ch == 'q' || event.Ch == 'Q' {
 						break loop
 					} else if event.Ch == '+' || event.Ch == '-' {
-						lineEditor = mop.NewLineEditor(screen, quotes)
+						lineEditor = view.NewLineEditor(screen, quotes)
 						lineEditor.Prompt(event.Ch)
 					} else if event.Ch == 'f' {
-						lineEditor = mop.NewLineEditor(screen, quotes)
+						lineEditor = view.NewLineEditor(screen, quotes)
 						lineEditor.Prompt(event.Ch)
 					} else if event.Ch == 'F' {
 						profile.SetFilter("")
 					} else if event.Ch == 'o' || event.Ch == 'O' {
-						columnEditor = mop.NewColumnEditor(screen, quotes)
+						columnEditor = view.NewColumnEditor(screen, quotes)
 					} else if event.Ch == 'g' || event.Ch == 'G' {
 						if profile.Regroup() == nil {
 							screen.Draw(quotes)
@@ -128,19 +128,17 @@ loop:
 	}
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func main() {
-	screen := mop.NewScreen()
-	defer screen.Close()
+	flags := config.ParseFlags()
 
-	usr, err := user.Current()
-	if err != nil {
-		panic(err)
+	if flags.Version {
+		fmt.Printf("%s\n", internal.Version)
+		os.Exit(0)
 	}
+	profile := config.NewProfile(flags.Profile)
 
-	profileName := flag.String("profile", path.Join(usr.HomeDir, defaultProfile), "path to profile")
-	flag.Parse()
-
-	profile := mop.NewProfile(*profileName)
+	screen := view.NewScreen(*profile.Color)
+	defer screen.Close()
 	mainLoop(screen, profile)
 }

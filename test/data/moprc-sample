@@ -1,0 +1,23 @@
+{
+  "Tickers": [
+    "AAPL",
+    "C",
+    "GOOG",
+    "IBM",
+    "KO",
+    "ORCL",
+    "V"
+  ],
+  "MarketRefresh": 12,
+  "QuotesRefresh": 5,
+  "SortColumn": 0,
+  "Ascending": true,
+  "Grouped": false,
+  "Filter": "",
+  "FilterExpression": null,
+  "SelectedColumn": 0,
+  "Color": {
+    "Highlight": "green",
+    "Market": "yellow"
+  }
+}

@@ -2,12 +2,16 @@
 // Use of this source code is governed by a MIT-style license that can
 // be found in the LICENSE file.
 
-package mop
+package view
 
 import (
-	`github.com/nsf/termbox-go`
-	`strings`
-	`time`
+	"strings"
+	"time"
+
+	"github.com/mop-tracker/mop/internal/config"
+	"github.com/mop-tracker/mop/pkg/model"
+
+	"github.com/nsf/termbox-go"
 )
 
 // Screen is thin wrapper aroung Termbox library to provide basic display
@@ -24,13 +28,13 @@ type Screen struct {
 // Initializes Termbox, creates screen along with layout and markup, and
 // calculates current screen dimensions. Once initialized the screen is
 // ready for display.
-func NewScreen() *Screen {
+func NewScreen(color config.Color) *Screen {
 	if err := termbox.Init(); err != nil {
 		panic(err)
 	}
 	screen := &Screen{}
 	screen.layout = NewLayout()
-	screen.markup = NewMarkup()
+	screen.markup = NewMarkup(color)
 
 	return screen.Resize()
 }
@@ -88,15 +92,15 @@ func (screen *Screen) ClearLine(x int, y int) *Screen {
 func (screen *Screen) Draw(objects ...interface{}) *Screen {
 	zonename, _ := time.Now().In(time.Local).Zone()
 	if screen.pausedAt != nil {
-		defer screen.DrawLine(0, 0, `<right><r>`+screen.pausedAt.Format(`3:04:05pm ` + zonename)+`</r></right>`)
+		defer screen.DrawLine(0, 0, `<right><r>`+screen.pausedAt.Format(`3:04:05pm `+zonename)+`</r></right>`)
 	}
 	for _, ptr := range objects {
 		switch ptr.(type) {
-		case *Market:
-			object := ptr.(*Market)
+		case *model.Market:
+			object := ptr.(*model.Market)
 			screen.draw(screen.layout.Market(object.Fetch()))
-		case *Quotes:
-			object := ptr.(*Quotes)
+		case *model.Quotes:
+			object := ptr.(*model.Quotes)
 			screen.draw(screen.layout.Quotes(object.Fetch()))
 		case time.Time:
 			timestamp := ptr.(time.Time).Format(`3:04:05pm ` + zonename)

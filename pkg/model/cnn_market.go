@@ -2,15 +2,15 @@
 // Use of this source code is governed by a MIT-style license that can
 // be found in the LICENSE file.
 
-package mop
+package model
 
 import (
-	`bytes`
-	`fmt`
-	`io/ioutil`
-	`net/http`
-	`regexp`
-	`strings`
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"regexp"
+	"strings"
 )
 
 const marketURL = `https://money.cnn.com/data/markets/`
@@ -35,7 +35,7 @@ type Market struct {
 	errors    string         // Error(s), if any.
 }
 
-// Returns new initialized Market struct.
+// NewMarket returns new initialized Market struct
 func NewMarket() *Market {
 	market := &Market{}
 	market.IsClosed = false
@@ -114,13 +114,13 @@ func (market *Market) Ok() (bool, string) {
 	return market.errors == ``, market.errors
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (market *Market) isMarketOpen(body []byte) []byte {
 	// TBD -- CNN page doesn't seem to have market open/close indicator.
 	return body
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (market *Market) trim(body []byte) []byte {
 	start := bytes.Index(body, []byte(`Markets Overview`))
 	finish := bytes.LastIndex(body, []byte(`Gainers`))
@@ -130,7 +130,7 @@ func (market *Market) trim(body []byte) []byte {
 	return snippet
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (market *Market) extract(snippet []byte) *Market {
 	matches := market.regex.FindStringSubmatch(string(snippet))
 
@@ -149,7 +149,6 @@ func (market *Market) extract(snippet []byte) *Market {
 	market.Sp500[`change`] = matches[7]
 	market.Sp500[`latest`] = matches[8]
 	market.Sp500[`percent`] = matches[9]
-
 
 	market.Yield[`name`] = `10-year Yield`
 	market.Yield[`latest`] = matches[10]

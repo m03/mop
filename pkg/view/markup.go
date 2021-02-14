@@ -2,13 +2,37 @@
 // Use of this source code is governed by a MIT-style license that can
 // be found in the LICENSE file.
 
-package mop
+package view
 
 import (
-	`github.com/nsf/termbox-go`
-	`regexp`
-	`strings`
+	"regexp"
+	"strings"
+
+	"github.com/mop-tracker/mop/internal/config"
+
+	"github.com/nsf/termbox-go"
 )
+
+// terminalColor maps the string representation of the color to its termbox equivalent
+var terminalColor = map[string]termbox.Attribute{
+	"black":        termbox.ColorBlack,
+	"blue":         termbox.ColorBlue,
+	"cyan":         termbox.ColorCyan,
+	"darkgray":     termbox.ColorDarkGray,
+	"default":      termbox.ColorDefault,
+	"green":        termbox.ColorGreen,
+	"lightblue":    termbox.ColorLightBlue,
+	"lightcyan":    termbox.ColorLightCyan,
+	"lightgray":    termbox.ColorLightGray,
+	"lightgreen":   termbox.ColorLightGreen,
+	"lightmagenta": termbox.ColorLightMagenta,
+	"lightred":     termbox.ColorLightRed,
+	"lightyellow":  termbox.ColorLightYellow,
+	"magenta":      termbox.ColorMagenta,
+	"red":          termbox.ColorRed,
+	"white":        termbox.ColorWhite,
+	"yellow":       termbox.ColorYellow,
+}
 
 // Markup implements some minimalistic text formatting conventions that
 // get translated to Termbox colors and attributes. To colorize a string
@@ -31,24 +55,20 @@ type Markup struct {
 	regex        *regexp.Regexp               // Regex to identify the supported tag names.
 }
 
-// Creates markup to define tag to Termbox translation rules and store default
+// NewMarkup creates markup to define tag to Termbox translation rules and store default
 // colors and column alignments.
-func NewMarkup() *Markup {
+func NewMarkup(color config.Color) *Markup {
 	markup := &Markup{}
 	markup.Foreground = termbox.ColorDefault
 	markup.Background = termbox.ColorDefault
 	markup.RightAligned = false
 
 	markup.tags = make(map[string]termbox.Attribute)
+
 	markup.tags[`/`] = termbox.ColorDefault
-	markup.tags[`black`] = termbox.ColorBlack
-	markup.tags[`red`] = termbox.ColorRed
-	markup.tags[`green`] = termbox.ColorGreen
-	markup.tags[`yellow`] = termbox.ColorYellow
-	markup.tags[`blue`] = termbox.ColorBlue
-	markup.tags[`magenta`] = termbox.ColorMagenta
-	markup.tags[`cyan`] = termbox.ColorCyan
-	markup.tags[`white`] = termbox.ColorWhite
+	markup.tags["base"] = termbox.ColorWhite
+	markup.tags["highlight"] = terminalColor[color.Highlight]
+	markup.tags["market"] = terminalColor[color.Market]
 	markup.tags[`right`] = termbox.ColorDefault // Termbox can combine attributes and a single color using bitwise OR.
 	markup.tags[`b`] = termbox.AttrBold         // Attribute = 1 << (iota + 4)
 	markup.tags[`u`] = termbox.AttrUnderline
@@ -106,7 +126,7 @@ func (markup *Markup) IsTag(str string) bool {
 	return markup.process(tag, open)
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func (markup *Markup) process(tag string, open bool) bool {
 	if attribute, ok := markup.tags[tag]; ok {
 		switch tag {
@@ -144,7 +164,7 @@ func (markup *Markup) supportedTags() *regexp.Regexp {
 	return regexp.MustCompile(strings.Join(arr, `|`))
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func probeForTag(str string) (string, bool) {
 	if len(str) > 2 && str[0:1] == `<` && str[len(str)-1:] == `>` {
 		return extractTagName(str), str[1:2] != `/`
@@ -153,7 +173,7 @@ func probeForTag(str string) (string, bool) {
 	return ``, false
 }
 
-// Extract tag name from the given tag, i.e. `<hello>` => `hello`.
+// extractTagName extracts the tag name from the given tag, i.e. `<hello>` => `hello`.
 func extractTagName(str string) string {
 	if len(str) < 3 {
 		return ``

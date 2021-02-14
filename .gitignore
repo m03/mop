@@ -20,4 +20,10 @@ cmd/mop/debug
 bin/mop*
 logs/*
 
+# IntelliJ
 .idea
+*.iml
+
+# VSCode
+.vscode
+.vstags

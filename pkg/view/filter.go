@@ -2,19 +2,24 @@
 // Use of this source code is governed by a MIT-style license that can
 // be found in the LICENSE file.
 
-package mop
+package view
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/mop-tracker/mop/internal/config"
+	"github.com/mop-tracker/mop/pkg/model"
+)
 
 // Filter gets called to sort stock quotes by one of the columns. The
 // setup is rather lengthy; there should probably be more concise way
 // that uses reflection and avoids hardcoding the column names.
 type Filter struct {
-	profile *Profile // Pointer to where we store sort column and order.
+	profile *config.Profile // Pointer to where we store sort column and order.
 }
 
 // Returns new Filter struct.
-func NewFilter(profile *Profile) *Filter {
+func NewFilter(profile *config.Profile) *Filter {
 	return &Filter{
 		profile: profile,
 	}
@@ -22,8 +27,8 @@ func NewFilter(profile *Profile) *Filter {
 
 // Apply builds a list of sort interface based on current sort
 // order, then calls sort.Sort to do the actual job.
-func (filter *Filter) Apply(stocks []Stock) []Stock {
-	var filteredStocks []Stock
+func (filter *Filter) Apply(stocks []model.Stock) []model.Stock {
+	var filteredStocks []model.Stock
 
 	for _, stock := range stocks {
 		var values = map[string]interface{}{
@@ -47,7 +52,7 @@ func (filter *Filter) Apply(stocks []Stock) []Stock {
 			"advancing":     stock.Advancing,
 		}
 
-		result, err := filter.profile.filterExpression.Evaluate(values)
+		result, err := filter.profile.FilterExpression.Evaluate(values)
 
 		if err != nil {
 			panic(err)

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style license that can
 // be found in the LICENSE file.
 
-package mop
+package model
 
 import (
 	"bytes"
@@ -13,6 +13,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/mop-tracker/mop/internal/config"
 )
 
 // const quotesURL = `http://download.finance.yahoo.com/d/quotes.csv?s=%s&f=sl1c1p2oghjkva2r2rdyj3j1`
@@ -51,16 +53,16 @@ type Stock struct {
 // the tickers we are tracking.
 type Quotes struct {
 	market  *Market  // Pointer to Market.
-	profile *Profile // Pointer to Profile.
-	stocks  []Stock  // Array of stock quote data.
+	Profile *config.Profile // Pointer to Profile.
+	Stocks  []Stock  // Array of stock quote data.
 	errors  string   // Error string if any.
 }
 
 // Sets the initial values and returns new Quotes struct.
-func NewQuotes(market *Market, profile *Profile) *Quotes {
+func NewQuotes(market *Market, profile *config.Profile) *Quotes {
 	return &Quotes{
 		market:  market,
-		profile: profile,
+		Profile: profile,
 		errors:  ``,
 	}
 }
@@ -78,7 +80,7 @@ func (quotes *Quotes) Fetch() (self *Quotes) {
 			}
 		}()
 
-		url := fmt.Sprintf(quotesURLv7, strings.Join(quotes.profile.Tickers, `,`))
+		url := fmt.Sprintf(quotesURLv7, strings.Join(quotes.Profile.Tickers, `,`))
 		response, err := http.Get(url + quotesURLv7QueryParts)
 		if err != nil {
 			panic(err)
@@ -106,8 +108,8 @@ func (quotes *Quotes) Ok() (bool, string) {
 // tickers have been added. The function gets called from the line editor
 // when user adds new stock tickers.
 func (quotes *Quotes) AddTickers(tickers []string) (added int, err error) {
-	if added, err = quotes.profile.AddTickers(tickers); err == nil && added > 0 {
-		quotes.stocks = nil // Force fetch.
+	if added, err = quotes.Profile.AddTickers(tickers); err == nil && added > 0 {
+		quotes.Stocks = nil // Force fetch.
 	}
 	return
 }
@@ -116,8 +118,8 @@ func (quotes *Quotes) AddTickers(tickers []string) (added int, err error) {
 // tickers have been removed. The function gets called from the line editor
 // when user removes existing stock tickers.
 func (quotes *Quotes) RemoveTickers(tickers []string) (removed int, err error) {
-	if removed, err = quotes.profile.RemoveTickers(tickers); err == nil && removed > 0 {
-		quotes.stocks = nil // Force fetch.
+	if removed, err = quotes.Profile.RemoveTickers(tickers); err == nil && removed > 0 {
+		quotes.Stocks = nil // Force fetch.
 	}
 	return
 }
@@ -126,7 +128,7 @@ func (quotes *Quotes) RemoveTickers(tickers []string) (removed int, err error) {
 // market is still open and we might want to grab the latest quotes. In both
 // cases we make sure the list of requested tickers is not empty.
 func (quotes *Quotes) isReady() bool {
-	return (quotes.stocks == nil || !quotes.market.IsClosed) && len(quotes.profile.Tickers) > 0
+	return (quotes.Stocks == nil || !quotes.market.IsClosed) && len(quotes.Profile.Tickers) > 0
 }
 
 // this will parse the json objects
@@ -143,7 +145,7 @@ func (quotes *Quotes) parse2(body []byte) (*Quotes, error) {
 	}
 	results := d["quoteResponse"]["result"]
 
-	quotes.stocks = make([]Stock, len(results))
+	quotes.Stocks = make([]Stock, len(results))
 	for i, raw := range results {
 		result := map[string]string{}
 		for k, v := range raw {
@@ -157,28 +159,28 @@ func (quotes *Quotes) parse2(body []byte) (*Quotes, error) {
 			}
 
 		}
-		quotes.stocks[i].Ticker = result["symbol"]
-		quotes.stocks[i].LastTrade = result["regularMarketPrice"]
-		quotes.stocks[i].Change = result["regularMarketChange"]
-		quotes.stocks[i].ChangePct = result["regularMarketChangePercent"]
-		quotes.stocks[i].Open = result["regularMarketOpen"]
-		quotes.stocks[i].Low = result["regularMarketDayLow"]
-		quotes.stocks[i].High = result["regularMarketDayHigh"]
-		quotes.stocks[i].Low52 = result["fiftyTwoWeekLow"]
-		quotes.stocks[i].High52 = result["fiftyTwoWeekHigh"]
-		quotes.stocks[i].Volume = result["regularMarketVolume"]
-		quotes.stocks[i].AvgVolume = result["averageDailyVolume10Day"]
-		quotes.stocks[i].PeRatio = result["trailingPE"]
+		quotes.Stocks[i].Ticker = result["symbol"]
+		quotes.Stocks[i].LastTrade = result["regularMarketPrice"]
+		quotes.Stocks[i].Change = result["regularMarketChange"]
+		quotes.Stocks[i].ChangePct = result["regularMarketChangePercent"]
+		quotes.Stocks[i].Open = result["regularMarketOpen"]
+		quotes.Stocks[i].Low = result["regularMarketDayLow"]
+		quotes.Stocks[i].High = result["regularMarketDayHigh"]
+		quotes.Stocks[i].Low52 = result["fiftyTwoWeekLow"]
+		quotes.Stocks[i].High52 = result["fiftyTwoWeekHigh"]
+		quotes.Stocks[i].Volume = result["regularMarketVolume"]
+		quotes.Stocks[i].AvgVolume = result["averageDailyVolume10Day"]
+		quotes.Stocks[i].PeRatio = result["trailingPE"]
 		// TODO calculate rt
-		quotes.stocks[i].PeRatioX = result["trailingPE"]
-		quotes.stocks[i].Dividend = result["trailingAnnualDividendRate"]
-		quotes.stocks[i].Yield = result["trailingAnnualDividendYield"]
-		quotes.stocks[i].MarketCap = result["marketCap"]
+		quotes.Stocks[i].PeRatioX = result["trailingPE"]
+		quotes.Stocks[i].Dividend = result["trailingAnnualDividendRate"]
+		quotes.Stocks[i].Yield = result["trailingAnnualDividendYield"]
+		quotes.Stocks[i].MarketCap = result["marketCap"]
 		// TODO calculate rt?
-		quotes.stocks[i].MarketCapX = result["marketCap"]
-		quotes.stocks[i].Currency = result["currency"]
-		quotes.stocks[i].PreOpen = result["preMarketChangePercent"]
-		quotes.stocks[i].AfterHours = result["postMarketChangePercent"]
+		quotes.Stocks[i].MarketCapX = result["marketCap"]
+		quotes.Stocks[i].Currency = result["currency"]
+		quotes.Stocks[i].PreOpen = result["preMarketChangePercent"]
+		quotes.Stocks[i].AfterHours = result["postMarketChangePercent"]
 		/*
 			fmt.Println(i)
 			fmt.Println("-------------------")
@@ -187,9 +189,9 @@ func (quotes *Quotes) parse2(body []byte) (*Quotes, error) {
 			}
 			fmt.Println("-------------------")
 		*/
-		adv, err := strconv.ParseFloat(quotes.stocks[i].Change, 64)
+		adv, err := strconv.ParseFloat(quotes.Stocks[i].Change, 64)
 		if err == nil {
-			quotes.stocks[i].Advancing = adv >= 0.0
+			quotes.Stocks[i].Advancing = adv >= 0.0
 		}
 	}
 	return quotes, nil
@@ -199,12 +201,12 @@ func (quotes *Quotes) parse2(body []byte) (*Quotes, error) {
 // market API.
 func (quotes *Quotes) parse(body []byte) *Quotes {
 	lines := bytes.Split(body, []byte{'\n'})
-	quotes.stocks = make([]Stock, len(lines))
+	quotes.Stocks = make([]Stock, len(lines))
 	//
 	// Get the total number of fields in the Stock struct. Skip the last
 	// Advanicing field which is not fetched.
 	//
-	fieldsCount := reflect.ValueOf(quotes.stocks[0]).NumField() - 1
+	fieldsCount := reflect.ValueOf(quotes.Stocks[0]).NumField() - 1
 	//
 	// Split each line into columns, then iterate over the Stock struct
 	// fields to assign column values.
@@ -212,30 +214,30 @@ func (quotes *Quotes) parse(body []byte) *Quotes {
 	for i, line := range lines {
 		columns := bytes.Split(bytes.TrimSpace(line), []byte{','})
 		for j := 0; j < fieldsCount; j++ {
-			// ex. quotes.stocks[i].Ticker = string(columns[0])
-			reflect.ValueOf(&quotes.stocks[i]).Elem().Field(j).SetString(string(columns[j]))
+			// ex. quotes.Stocks[i].Ticker = string(columns[0])
+			reflect.ValueOf(&quotes.Stocks[i]).Elem().Field(j).SetString(string(columns[j]))
 		}
 		//
 		// Try realtime value and revert to the last known if the
 		// realtime is not available.
 		//
-		if quotes.stocks[i].PeRatio == `N/A` && quotes.stocks[i].PeRatioX != `N/A` {
-			quotes.stocks[i].PeRatio = quotes.stocks[i].PeRatioX
+		if quotes.Stocks[i].PeRatio == `N/A` && quotes.Stocks[i].PeRatioX != `N/A` {
+			quotes.Stocks[i].PeRatio = quotes.Stocks[i].PeRatioX
 		}
-		if quotes.stocks[i].MarketCap == `N/A` && quotes.stocks[i].MarketCapX != `N/A` {
-			quotes.stocks[i].MarketCap = quotes.stocks[i].MarketCapX
+		if quotes.Stocks[i].MarketCap == `N/A` && quotes.Stocks[i].MarketCapX != `N/A` {
+			quotes.Stocks[i].MarketCap = quotes.Stocks[i].MarketCapX
 		}
 		//
 		// Stock is advancing if the change is not negative (i.e. $0.00
 		// is also "advancing").
 		//
-		quotes.stocks[i].Advancing = (quotes.stocks[i].Change[0:1] != `-`)
+		quotes.Stocks[i].Advancing = (quotes.Stocks[i].Change[0:1] != `-`)
 	}
 
 	return quotes
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 func sanitize(body []byte) []byte {
 	return bytes.Replace(bytes.TrimSpace(body), []byte{'"'}, []byte{}, -1)
 }
